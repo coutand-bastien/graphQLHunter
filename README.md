@@ -1,5 +1,7 @@
 # GraphQLHunter
 
+[![Python 3.x](https://img.shields.io/badge/python-2.6|2.7|3.x-yellow.svg)](https://www.python.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) 
+
 GraphQLHunter is a interactive python tool that allows you to find and test GraphQL endpoints, perform introspection, and execute queries.
 
 ## Features
@@ -73,6 +75,12 @@ Execute a specified query on the endpoint:
 
 <br>
 
+# Crédits
+
+- [SecLists](https://github.com/danielmiessler/SecLists) - GraphQL endpoints wordlists
+
+<br>
+
 # License
 
-This project is licensed under the MIT License.
+This project is licensed under the [MIT license](LICENSE).
