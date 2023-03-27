@@ -7,6 +7,8 @@ __license__             = 'MIT'
 import requests
 from termcolor import colored
 from datetime import datetime
+from fastapi import FastAPI, Request, Body
+import uvicorn
 import json
 import os
 
@@ -15,8 +17,43 @@ URL           = ''
 AUTHORIZATION = ''
 QL_HEADERS    = {'Content-Type': 'application/json'}
 
+app = FastAPI()
+
+####################################################################################
+#### SERVER ROUTES 
+####################################################################################
+@app.post('/inject')
+async def intercept_request(request: Request, inject_request: str = Body(...)):
+    '''
+    Function that intercepts the request and injects the payload.
+     
+    Parameters:
+        request (Request): The request object.
+        inject_request (str): The GraphQL request to inject the payload into.
+
+    Returns:
+        response (Response): The response object.
+    '''
+    response = requests.post(URL, json={'query': inject_request}, headers=QL_HEADERS)
+
+    try:
+        data = json.loads(response.text)
+
+        if 'errors' in data:
+            print(f'{colored("[-] Bad request :" + json.dumps(data["errors"], indent=4), "red")}')
+        else:
+            print(f'{colored(json.dumps(data, indent=4), "blue")}')
+
+    except Exception as e:
+        print(colored('[-] Bad request !', 'red'))
+
+    return response
+
 
 def title():
+    '''
+    This function prints the title of the program.
+    '''
     print('''\n
                                   ______                 __    ____    __ 
                                  / ____/________ _____  / /_  / __ \\  / / 
@@ -33,10 +70,14 @@ def title():
 
 
 def show_help():
+    '''
+    This function prints the help message.
+    '''
     print('''[options]
 
         Options:
         h, help            show this help message and exit
+        p, proxy           set proxy (setup the endpoint graphQL before)
         bf, bruteforce     bruteforce url to find graphql endpoint
         u, url             test an user url
         i, intro           perform an introspection
@@ -50,6 +91,12 @@ def test_QL_url(url):
     test_QL_url() is a function that tests the validity of a GraphQL endpoint.
     It sends a query to the specified URL and checks if the response status code is 200, 401 or 403.
     This function returns a boolean indicating if the URL is a valid GraphQL endpoint or not.
+
+    Parameters:
+        url (str): The URL to test.
+
+    Returns:
+        True if the URL is a valid GraphQL endpoint, False otherwise.
     '''
     query   = 'query {__schema{types{name,fields{name}}}}'
 
@@ -67,6 +114,12 @@ def brute_force_QL_url(url):
     '''
     Test a list of directories by appending them to a base URL and checking if they return a 200 status code.
     The list of directories is read from a text file called 'graphQLUrl.txt'
+
+    Parameters:
+        url (str): The base URL to test.
+
+    Returns:
+        None if no valid directory is found, otherwise it returns the valid URL.
     '''
     separator = '/' if not url.endswith('/') else '' # for making a good url at the end
 
@@ -93,7 +146,13 @@ def brute_force_QL_url(url):
 
 def parse_json_ql_introspection(response):
     '''
-    Parse the JSON response from the GraphQL endpoint.
+    This function parses the JSON response of a GraphQL introspection query.
+
+    Parameters:
+        response (str): The JSON response of the introspection query.
+
+    Returns:
+        None if the response is not a valid JSON, otherwise it returns a list of GraphQL types.
     '''
     try:
         json_file = json.loads(response)
@@ -148,7 +207,7 @@ def parse_json_ql_introspection(response):
 
 def ql_introspection():
     '''
-    Get information about the GraphQL endpoint.
+    This function performs an introspection on the GraphQL endpoint.
     '''
     query   = 'query {__schema{queryType{name}mutationType{name}subscriptionType{name}types{...FullType}directives{name description locations args{...InputValue}}}}fragment FullType on __Type{kind name description fields(includeDeprecated:true){name description args{...InputValue}type{...TypeRef}isDeprecated deprecationReason}inputFields{...InputValue}interfaces{...TypeRef}enumValues(includeDeprecated:true){name description isDeprecated deprecationReason}possibleTypes{...TypeRef}}fragment InputValue on __InputValue{name description type{...TypeRef}defaultValue}fragment TypeRef on __Type{kind name ofType{kind name ofType{kind name ofType{kind name ofType{kind name ofType{kind name ofType{kind name ofType{kind name}}}}}}}}'
     
@@ -187,7 +246,7 @@ if __name__ == '__main__':
         user_input = input(colored('GQLHunter> ', 'yellow'))
 
         ####################################################################################
-        #### URL
+        #### URL (set url and authorization header))
         ####################################################################################
         if user_input.lower() == 'u' or user_input.lower() == 'url':
             valid_url = False # reset to false
@@ -203,9 +262,9 @@ if __name__ == '__main__':
                 valid_url = True
             else:
                 print(colored('[-] Invalid URL.', 'red'))
-
+                
         ####################################################################################
-        #### BRUTEFORCE
+        #### BRUTEFORCE (bruteforce url to find graphql endpoint)
         ####################################################################################
         elif user_input.lower() == 'bf' or user_input.lower() == 'bruteforce':
             print(colored('[INFO] Enter a base URL to test : ', 'blue'))
@@ -226,42 +285,60 @@ if __name__ == '__main__':
                 print(colored(f'[+] {URL} is already an QL URL', 'green'))
 
         ####################################################################################
-        #### HELP
+        #### HELP (show help)
         ####################################################################################
         elif user_input.lower() == 'h' or user_input.lower() == 'help':
             show_help()
 
         ####################################################################################
-        #### INTROSPECTION
+        #### INTROSPECTION (perform an introspection on the GraphQL endpoint)
         ####################################################################################
         elif user_input.lower() == "i" or user_input.lower() == "intro":
             ql_introspection()
 
         ####################################################################################
-        #### EXIT
+        #### EXIT (exit the program)
         ####################################################################################
         elif user_input == 'exit':
             break
 
-        ####################################################################################
-        #### QUERY
-        ####################################################################################
+      
         elif valid_url :
-            data = '' # reset data var
-          
-            user_input = user_input.replace('\\n', '').replace('\\', '') # sanitize the user input
-            response   = requests.post(URL, json={'query': user_input}, headers=QL_HEADERS)
+            ##############################################################################
+            #### PROXY (set proxy)
+            ##############################################################################
+            if user_input.lower() == 'p' or user_input.lower() == 'proxy':
+                print(colored('[INFO] Enter proxy host and port (default localhost:8080 - press enter) : ', 'blue'))
+                host = input(colored('GQLHunter ~ PROXY ~ HOST> ', 'yellow'))
+                port = input(colored('GQLHunter ~ PROXY ~ PORT> ', 'yellow'))
+                
+                if not host: host = 'localhost'
+                if not port: port = '8080'
 
-            try:
-                data = json.loads(response.text)
+                config = uvicorn.Config("graphQLHunter:app", host=host, port=int(port))
+                server = uvicorn.Server(config)
+                server.run()
+               
 
-                if 'errors' in data:
-                    print(f'{colored("[-] Bad request :" + json.dumps(data["errors"], indent=4), "red")}')
-                else:
-                    print(f'{colored(json.dumps(data, indent=4), "blue")}')
+            ####################################################################################
+            #### QUERY (perform query to the graphQL endpoint)
+            ####################################################################################
+            else:
+                data = '' # reset data var
+            
+                user_input = user_input.replace('\\n', '').replace('\\', '') # sanitize the user input
+                response   = requests.post(URL, json={'query': user_input}, headers=QL_HEADERS)
 
-            except Exception as e:
-                print(colored('[-] Bad request !', 'red'))
+                try:
+                    data = json.loads(response.text)
+
+                    if 'errors' in data:
+                        print(f'{colored("[-] Bad request :" + json.dumps(data["errors"], indent=4), "red")}')
+                    else:
+                        print(f'{colored(json.dumps(data, indent=4), "blue")}')
+
+                except Exception as e:
+                    print(colored('[-] Bad request !', 'red'))
 
         else:
             show_help()
